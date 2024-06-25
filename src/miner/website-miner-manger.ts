@@ -187,6 +187,7 @@ export class WebsiteMinerManager {
                 if (result.err) {
                     record.error += 1
                     if (record.error > 32) {
+                        errout(`too much error on ${record.host}, skip it.`)
                         this.bloom_host(record.host)
                     }
                     this.error_count++
