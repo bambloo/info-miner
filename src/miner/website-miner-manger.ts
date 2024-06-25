@@ -168,12 +168,10 @@ export class WebsiteMinerManager {
             let miner = new WebsiteMiner()
             miner.on_mined(result => {
                 this.mining_count--
-
-                var record = this.ensure_host_record(result.host)
                 if (!this.mining_count && this.stop_resolver) {
                     this.stop_resolver()
                 }
-
+                this.make_miner_working(miner)
                 if (result.keyword) {
                     WebsiteModel.instance().then(model => {
                         return model.insert({ uri : result.website, keyword: result.keyword, confirm : false})
@@ -183,18 +181,21 @@ export class WebsiteMinerManager {
                     })
                 }
                 
-                this.make_miner_working(miner)
+                var record = this.host_records.get(result.host)
                 if (result.err) {
-                    record.error += 1
-                    if (record.error > 32) {
-                        errout(`too much error on ${record.host}, skip it.`)
-                        this.bloom_host(record.host)
+                    if (record) {
+                        record.error += 1
+                        if (record.error > 32) {
+                            errout(`too much error on ${record.host}, skip it.`)
+                            this.bloom_host(record.host)
+                        }
+                        this.error_count++
                     }
-                    this.error_count++
-                    // return logout(`${result.website} ${result.err.mesg}`)
                     return
                 }
-                record.error = 0
+                if (record) {
+                    record.error = 0
+                }
                 this.mined_count++
 
                 for (var foreign of result.foreign) {
