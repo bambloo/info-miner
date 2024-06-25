@@ -111,9 +111,8 @@ export class WebsiteMinerManager {
                     case 1:
                         throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `we have crawled on ${website}.`)
                     default:
-                        this.bloomed_count += 1
-                        this.bloom.add(hostname)
-                        this.host_records.delete(hostname)
+                        
+                        this.bloom_host(hostname)
                         logout(`we crawled too much on ${hostname}.`)
                         throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `we crawled too much on ${hostname}.`)
                 }
@@ -137,11 +136,15 @@ export class WebsiteMinerManager {
         this.host_records.forEach((value, key) => {
             if (value.time <= remove_before) {
                 logout(`there has been a while after we crawled ${key}, remove and ignore it.`)
-                this.host_records.delete(key)
-                this.bloomed_count += 1
-                this.bloom.add(key)
+                this.bloom_host(key)
             }
         })
+    }
+
+    private bloom_host(host: string) {
+        this.bloomed_count += 1
+        this.bloom.add(host)
+        this.host_records.delete(host)
     }
     
     mined_count: number = 0
@@ -175,7 +178,7 @@ export class WebsiteMinerManager {
                     WebsiteModel.instance().then(model => {
                         return model.insert({ uri : result.website, keyword: result.keyword, confirm : false})
                         .catch(err => {
-                            errout(err)
+                            errout(`website insert failed: ${result.website} ${err.message}`)
                         })
                     })
                 }
@@ -184,7 +187,7 @@ export class WebsiteMinerManager {
                 if (result.err) {
                     record.error += 1
                     if (record.error > 32) {
-                        this.bloom.add(result.host)
+                        this.bloom_host(record.host)
                     }
                     this.error_count++
                     // return logout(`${result.website} ${result.err.mesg}`)
@@ -207,7 +210,6 @@ export class WebsiteMinerManager {
             })
             this.make_miner_working(miner)
             this.miners.push(miner)
-            // this.mining_count++
         }
     }
     
