@@ -7,6 +7,7 @@ import { load } from 'cheerio'
 import { logout } from '../util/logger-helper'
 import { Transform } from 'stream'
 import { MINER_CONFIG } from '../config'
+import { get_hostname } from '../util/request-util'
 
 const CACHE_SPLIT = 1024 * 64
 const CACHE_COUNT = 16
@@ -52,7 +53,7 @@ export class WebsiteCache {
             walker.on('end', resolve)
         }).then(() => {
             if (this.cache_files.length == 0) {
-                this.add(MINER_CONFIG.ENTRY_DOMAIN)
+                this.add(MINER_CONFIG.ENTRY_DOMAIN, get_hostname(MINER_CONFIG.ENTRY_DOMAIN))
             }
             return this.load_cache()
         }).then(() => {
@@ -60,7 +61,7 @@ export class WebsiteCache {
         })
     }
 
-    add(website: string) {
+    add(website: string, host: string) {
         if (this.cache_master.length < CACHE_SPLIT) {
             this.semaphore.produce(1)
             return this.cache_master.push(website)

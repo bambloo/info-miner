@@ -101,6 +101,9 @@ export class WebsiteMinerManager {
         if (this.mining && miner.count < MINER_CONFIG.WORK_PER_MINER) {
             this.website_cache.get().then(website => {
                 let hostname = get_hostname(website)
+                if (this.bloom.has(hostname)) {
+                    throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `${hostname} was skipped.`)
+                }
                 let state = this.ensure_host_record(hostname).add(website)
                 switch(state) {
                     case 0:
@@ -111,7 +114,6 @@ export class WebsiteMinerManager {
                     case 1:
                         throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `we have crawled on ${website}.`)
                     default:
-                        
                         this.bloom_host(hostname)
                         logout(`we crawled too much on ${hostname}.`)
                         throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `we crawled too much on ${hostname}.`)
@@ -200,13 +202,13 @@ export class WebsiteMinerManager {
 
                 for (var foreign of result.foreign) {
                     if (!this.bloom.has(foreign.host)) {
-                        this.website_cache.add(foreign.url)
+                        this.website_cache.add(foreign.url, foreign.host)
                     }
                 }
 
                 for (var domestic of result.domestic) {
                     if (!this.bloom.has(domestic.host)) {
-                        this.website_cache.add(domestic.url)
+                        this.website_cache.add(domestic.url, domestic.host)
                     }
                 }
             })
