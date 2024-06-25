@@ -1,5 +1,6 @@
 export type WebsiteMinerResult = {
     website: string,
+    host: string,
     domestic: { host: string, url: string } [],
     foreign: {host: string, url: string } [],
     keyword: string,

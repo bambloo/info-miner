@@ -71,13 +71,13 @@ if (isMainThread) {
                     }
                 }
                 if (keyword) {
-                    res = { website: website, domestic: domestic_urls, foreign: foreign_urls, keyword: keyword}
+                    res = { website: website, host: parent_host, domestic: domestic_urls, foreign: foreign_urls, keyword: keyword}
                 } else {
-                    res = { website: website, domestic: domestic_urls, foreign: foreign_urls }
+                    res = { website: website, host: parent_host, domestic: domestic_urls, foreign: foreign_urls }
                 }
             })
             .catch(err => {
-                res = { website: website, err: err }
+                res = { website: website, host: parent_host, err: err }
             })
             .finally(() => {
                 parentPort.postMessage(res)

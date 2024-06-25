@@ -1,5 +1,5 @@
 import { ObjectId } from "bson"
-import { mongo_db_operator } from "../util/db-helper"
+import { mongo_db_operator, mongo_page } from "../util/mongo-helper"
 import { BamblooError, BamblooStatusCode } from "../status"
 import { DataObject, assign_keys, deep_copy } from "../util/object-util"
 import { logout, errout } from "../util/logger-helper"
@@ -83,6 +83,13 @@ export class BaseModel<
     find(cond: any): Promise<ObjType[]> {
         return mongo_db_operator().then(db => {
             return db.collection(this.coll).find(cond).toArray() as any
+        })
+    }
+
+    page(pager: any) {
+        return this.col().then(col => {
+            pager.collection = col
+            return mongo_page(pager)
         })
     }
 

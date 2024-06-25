@@ -9,7 +9,7 @@ export function get_hostname(url: string) {
     }
 }
 
-const REQUEST_TIMEOUT = 300000
+const REQUEST_TIMEOUT = 60000
 
 export function request_website(uri: string) {
     return new Promise<string>((resolve, reject) => {
@@ -25,7 +25,7 @@ export function request_website(uri: string) {
         req.on('response', res => {
             var contentType = res.headers['content-type']
             if (contentType && contentType.indexOf('text') < 0) {
-                req.abort()
+                req.destroy()
                 res.destroy()
                 clearTimeout(timeout)
                 return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} content-type ${res.headers['content-type']} skip`))
@@ -34,7 +34,7 @@ export function request_website(uri: string) {
                 length += data.length
                 if (length > 3 * 1024 * 1024) {
                     res.destroy()
-                    req.abort()
+                    req.destroy()
                     clearTimeout(timeout)
                     return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} too long`))
                 }
@@ -47,19 +47,19 @@ export function request_website(uri: string) {
                 }
                 clearTimeout(timeout)
                 res.destroy()
-                req.abort()
+                req.destroy()
                 resolve(buf.toString())
             })
             res.on('error', err => {
                 clearTimeout(timeout)
                 res.destroy()
-                req.abort()
+                req.destroy()
                 reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} res ${err.message}`))
             })
         })
 
         req.on('error', err => {
-            req.abort()
+            req.destroy()
             clearTimeout(timeout)
             reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} req ${err.message}`))
         })

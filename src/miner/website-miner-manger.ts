@@ -13,10 +13,12 @@ class HostRecord {
     host: string
     urls: Set<string> = new Set()
     time: number
+    error: number
 
     constructor(host: string) {
         this.host = host
         this.time = new Date().getTime()
+        this.error = 0
     }
 
     add(url: string): number {
@@ -163,6 +165,8 @@ export class WebsiteMinerManager {
             let miner = new WebsiteMiner()
             miner.on_mined(result => {
                 this.mining_count--
+
+                var record = this.ensure_host_record(result.host)
                 if (!this.mining_count && this.stop_resolver) {
                     this.stop_resolver()
                 }
@@ -178,10 +182,15 @@ export class WebsiteMinerManager {
                 
                 this.make_miner_working(miner)
                 if (result.err) {
+                    record.error += 1
+                    if (record.error > 32) {
+                        this.bloom.add(result.host)
+                    }
                     this.error_count++
                     // return logout(`${result.website} ${result.err.mesg}`)
                     return
                 }
+                record.error = 0
                 this.mined_count++
 
                 for (var foreign of result.foreign) {
