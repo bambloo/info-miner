@@ -1,0 +1,4 @@
+/node_modules
+/logs
+/resourses/*.txt
+/package-lock.json
