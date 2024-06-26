@@ -99,7 +99,7 @@ export class WebsiteMinerManager {
 
     make_miner_working(miner: WebsiteMiner) {
         if (this.mining && miner.count < MINER_CONFIG.WORK_PER_MINER) {
-            this.website_cache.get().then(website => {
+            this.website_cache.pop().then(website => {
                 let hostname = get_hostname(website)
                 if (this.bloom.has(hostname)) {
                     throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `${hostname} was skipped.`)
@@ -134,7 +134,7 @@ export class WebsiteMinerManager {
     }
 
     private remove_timedout_records() {
-        let remove_before = new Date().getTime() - 60 * 60 * 1000
+        let remove_before = new Date().getTime() - 15 * 60 * 1000 * 1
         this.host_records.forEach((value, key) => {
             if (value.time <= remove_before) {
                 logout(`there has been a while after we crawled ${key}, remove and ignore it.`)
@@ -200,17 +200,18 @@ export class WebsiteMinerManager {
                 }
                 this.mined_count++
 
-                for (var foreign of result.foreign) {
-                    if (!this.bloom.has(foreign.host)) {
-                        this.website_cache.add(foreign.url, foreign.host)
+                for (var domestic of result.domestic) {
+                    if (!this.bloom.has(domestic.host)) {
+                        this.website_cache.push(domestic.host, domestic.url)
                     }
                 }
 
-                for (var domestic of result.domestic) {
-                    if (!this.bloom.has(domestic.host)) {
-                        this.website_cache.add(domestic.url, domestic.host)
+                for (var foreign of result.foreign) {
+                    if (!this.bloom.has(foreign.host)) {
+                        this.website_cache.push(foreign.host, foreign.url)
                     }
                 }
+
             })
             this.make_miner_working(miner)
             this.miners.push(miner)
