@@ -36,24 +36,27 @@ class HostRecord {
 }
 
 export class WebsiteMinerManager {
-    bloom_path: string
-    bloom: BloomFilter = new BloomFilter(1, 1)
-    website_cache: WebsiteCache
+    private bloom_path: string
+    private bloom: BloomFilter = new BloomFilter(1, 1)
+    private website_cache: WebsiteCache = new WebsiteCache(MINER_CONFIG.WEBSITE_CACHE_PATH)
 
-    miners: WebsiteMiner[] = []
-    mining: boolean = false
-    mining_count: number = 0
-    bloomed_count: number = 0
+    private miners: WebsiteMiner[] = []
+    private mining: boolean = false
+    private mining_count: number = 0
+    private bloomed_count: number = 0
 
     private host_records: Map<string, HostRecord> = new Map()
-
-    static ignore_set: Set<string> = new Set()
-
-    stop_resolver?: () => void
+    private ignore_set: Set<string> = new Set()
 
     constructor(bloom: string) {
         this.bloom_path = bloom
-        this.website_cache = new WebsiteCache(MINER_CONFIG.WEBSITE_CACHE_PATH)
+    }
+
+    add_igore(ign: string) {
+        this.ignore_set.add(ign)
+        return IgnoreModel.instance().then(model => {
+            return model.insert({ host: ign})
+        })
     }
 
     cache_bloom() {
@@ -68,20 +71,11 @@ export class WebsiteMinerManager {
         }
     }
 
-    initialize() {
+    private initialize() {
         return fs.promises.open(MINER_CONFIG.BLOOM_LOCATION).then(handle => {
             return BloomFilter.fromHandle(handle).then(bloom => {
                 this.bloom = bloom
                 handle.close()
-            })
-        })
-        .then(() => {
-            return IgnoreModel.instance().then(model => {
-                return model.find({}).then(ignores => {
-                    for (let ignore of ignores) {
-                        WebsiteMinerManager.ignore_set.add(ignore.host)
-                    }
-                })
             })
         })
         .catch(err => {
@@ -91,6 +85,15 @@ export class WebsiteMinerManager {
             } else {
                 throw err
             }
+        })
+        .then(() => {
+            return IgnoreModel.instance().then(model => {
+                return model.find({}).then(ignores => {
+                    for (let ignore of ignores) {
+                        this.ignore_set.add(ignore.host)
+                    }
+                })
+            })
         })
         .then(() => {
             return this.website_cache.initialize()
@@ -148,90 +151,119 @@ export class WebsiteMinerManager {
         this.bloom.add(host)
         this.host_records.delete(host)
     }
+
+    private init_miner(miner: WebsiteMiner) {
+        let reset_miner = (exitcode: number) => {
+            if (this.mining) {
+                miner.dump_mining_set()
+                miner.hire(reset_miner)
+            }
+            errout(`${miner.id} miner exited with exitcode  ${exitcode}`)
+        }
+
+        miner.on_mined(result => {
+            this.mining_count--
+            this.make_miner_working(miner)
+            if (result.keyword) {
+                WebsiteModel.instance().then(model => {
+                    return model.insert({ uri : result.website, keyword: result.keyword, confirm : false})
+                    .catch(err => {
+                        errout(`website insert failed: ${result.website} ${err.message}`)
+                    })
+                })
+            }
+            
+            var record = this.host_records.get(result.host)
+            if (result.err) {
+                if (record) {
+                    record.error += 1
+                    if (record.error > 32) {
+                        errout(`too much error on ${record.host}, skip it.`)
+                        this.bloom_host(record.host)
+                    }
+                    this.error_count++
+                }
+                return
+            }
+            if (record) {
+                record.error = 0
+            }
+            this.mined_count++
+
+            for (var domestic of result.domestic) {
+                if (!this.bloom.has(domestic.host)) {
+                    this.website_cache.push(domestic.host, domestic.url)
+                }
+            }
+
+            for (var foreign of result.foreign) {
+                if (!this.bloom.has(foreign.host)) {
+                    this.website_cache.push(foreign.host, foreign.url)
+                }
+            }
+
+        })
+        miner.hire(reset_miner)
+        this.make_miner_working(miner)
+    }
     
     mined_count: number = 0
     error_count: number = 0
+    logger_timer?: NodeJS.Timeout
     start() {
-        this.mined_count = 0
-        this.error_count = 0
-        this.mining = true
-        this.bloomed_count = 0
-        // this.website_cache.add("https://www.baidu.com")
-
-        setInterval(() => {
-            logout(`mined:${this.mined_count},error:${this.error_count},mining:${this.mining_count},bloomed:${this.bloomed_count}`)
-        }, 5000)
-
-        setInterval(() => {
-            this.remove_timedout_records()
-        }, 1 * 60 * 1000)
-
-        while(this.miners.length < MINER_CONFIG.MINER_COUNT) {
-            let miner = new WebsiteMiner()
-            miner.on_mined(result => {
-                this.mining_count--
-                if (!this.mining_count && this.stop_resolver) {
-                    this.stop_resolver()
-                }
-                this.make_miner_working(miner)
-                if (result.keyword) {
-                    WebsiteModel.instance().then(model => {
-                        return model.insert({ uri : result.website, keyword: result.keyword, confirm : false})
-                        .catch(err => {
-                            errout(`website insert failed: ${result.website} ${err.message}`)
-                        })
-                    })
-                }
-                
-                var record = this.host_records.get(result.host)
-                if (result.err) {
-                    if (record) {
-                        record.error += 1
-                        if (record.error > 32) {
-                            errout(`too much error on ${record.host}, skip it.`)
-                            this.bloom_host(record.host)
-                        }
-                        this.error_count++
-                    }
-                    return
-                }
-                if (record) {
-                    record.error = 0
-                }
-                this.mined_count++
-
-                for (var domestic of result.domestic) {
-                    if (!this.bloom.has(domestic.host)) {
-                        this.website_cache.push(domestic.host, domestic.url)
-                    }
-                }
-
-                for (var foreign of result.foreign) {
-                    if (!this.bloom.has(foreign.host)) {
-                        this.website_cache.push(foreign.host, foreign.url)
-                    }
-                }
-
-            })
-            this.make_miner_working(miner)
-            this.miners.push(miner)
-        }
+        return this.initialize().then(() => {
+            this.mined_count = 0
+            this.error_count = 0
+            this.mining = true
+            this.bloomed_count = 0
+            // this.website_cache.add("https://www.baidu.com")
+    
+            this.logger_timer = setInterval(() => {
+                logout(`mined:${this.mined_count},error:${this.error_count},mining:${this.mining_count},bloomed:${this.bloomed_count}`)
+            }, 5000)
+    
+            setInterval(() => {
+                this.remove_timedout_records()
+            }, 1 * 60 * 1000)
+    
+            this.miners = new Array(MINER_CONFIG.MINER_COUNT)
+            for (let miner_index = 0; miner_index < MINER_CONFIG.MINER_COUNT; miner_index++) {
+                let miner = new WebsiteMiner(miner_index)
+                this.init_miner(miner)
+                this.miners[miner_index] = miner
+            }
+        })
     }
     
     stop() {
         return new Promise<void>(resolve => {
             this.mining = false
-            if (this.mining_count == 0) {
-                return resolve()
+            let fired_count = 0
+            for (let miner of this.miners) {
+                miner.fire().then(() =>{
+                    fired_count += 1
+                    logout(`fired ${miner.id}`)
+                    if (fired_count == this.miners.length) {
+                        resolve()
+                    }
+                })
             }
-            this.stop_resolver = resolve
         })
-        .then(() => {
-            return this.website_cache.close()
-        })
+        .then(() => this.website_cache.close())
+        .then(() => this.cache_bloom()) 
         .then(() => {
             this.miners = []
-            return this.cache_bloom()
+            this.website_cache = new WebsiteCache(MINER_CONFIG.WEBSITE_CACHE_PATH)
+            this.bloom = new BloomFilter(1, 1)
+            this.mining_count = 0
+            this.mined_count = 0
+            this.error_count = 0
+
+            this.bloomed_count = 0
+        
+            this.host_records = new Map()
+            this.ignore_set = new Set()
+            clearInterval(this.logger_timer)
         })
     }
 }

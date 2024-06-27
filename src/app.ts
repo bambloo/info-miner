@@ -22,7 +22,7 @@ process.on('uncaughtException', err => {
     errout(err)
 })
 
-export var miner_manager = new WebsiteMinerManager(MINER_CONFIG.BLOOM_LOCATION)
+export const miner_manager = new WebsiteMinerManager(MINER_CONFIG.BLOOM_LOCATION)
 
 Promise.resolve()
 .then(() => {
@@ -32,7 +32,6 @@ Promise.resolve()
         })
     })
 })
-.then(() => miner_manager.initialize())
 .then(() => {
     var application = express()
     application.use(body_parser.json())

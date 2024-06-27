@@ -1,5 +1,6 @@
 import request from 'request'
 import { BamblooError, BamblooStatusCode } from '../status'
+import { errout } from './logger-helper'
 
 export function get_hostname(url: string) {
     try {
@@ -15,7 +16,6 @@ export function request_website(uri: string) {
     return new Promise<string>((resolve, reject) => {
         let req = request.get(uri, { timeout : REQUEST_TIMEOUT})
         var bufs: Buffer[] = []
-        var length = 0
 
         var timeout = setTimeout(() => {
             req.abort()
@@ -23,6 +23,7 @@ export function request_website(uri: string) {
         }, REQUEST_TIMEOUT)
 
         req.on('response', res => {
+            var length = 0
             var contentType = res.headers['content-type']
             if (contentType && contentType.indexOf('text') < 0) {
                 req.destroy()
@@ -30,21 +31,19 @@ export function request_website(uri: string) {
                 clearTimeout(timeout)
                 return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} content-type ${res.headers['content-type']} skip`))
             }
-            res.on("data", data => {
-                length += data.length
-                if (length > 3 * 1024 * 1024) {
+            res.on("data", (data: Buffer) => {
+                length += data.byteLength
+                if (length > 5 * 1024 * 1024) {
                     res.destroy()
                     req.destroy()
                     clearTimeout(timeout)
+                    errout(`${uri} too long`)
                     return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} too long`))
                 }
                 bufs.push(Buffer.from(data))
             })
             res.on('end', () => {
                 var buf = Buffer.concat(bufs)
-                if (buf.length > 1024 * 1024 * 100) {
-                    debugger
-                }
                 clearTimeout(timeout)
                 res.destroy()
                 req.destroy()

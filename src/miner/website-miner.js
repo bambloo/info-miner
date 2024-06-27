@@ -1,21 +1,65 @@
 const { isMainThread } = require('worker_threads')
 if (isMainThread) {
+    const { errout, logout } = require('../util/logger-helper')
     const { Worker } = require('worker_threads')
     module.exports.WebsiteMiner = class {
-        constructor() {
+        constructor(id) {
+            this.id = id
+            this.mining_set = new Set()
+        }
+
+        get count() {
+            return this.mining_set.size
+        }
+
+        hire(exit_listener) {
             this.worker = new Worker(__filename)
-            this.count = 0
+            this.worker.once('exit', exit_code => {
+                delete this.worker
+                exit_listener(exit_code)
+            })
+            this.worker.on('error', err => {
+                errout(err.message)
+            })
+            this.worker.on('message', result => {
+                this.mining_set.delete(result.website)
+                if (this.mined_data_listener) {
+                    this.mined_data_listener(result)
+                }
+            })
+
+            this.mining_set.forEach(website => {
+                this.worker.postMessage({ cmd: 'crawl', website : website })
+            })
         }
 
         push(website) {
-            this.count += 1
-            this.worker.postMessage(website)
+            if (this.mining_set.has(website)) {
+                return
+            }
+            this.mining_set.add(website)
+            if (this.worker) {
+                this.worker.postMessage({ cmd: 'crawl', website : website })
+            }
         }
 
         on_mined(listener) {
-            this.worker.on('message', result => {
-                this.count -= 1
-                listener(result)
+            this.mined_data_listener = listener
+        }
+
+        dump_mining_set() {
+            this.mining_set.forEach(website => {
+                errout(`miner ${this.id} unmined website: ${website}`)
+            })
+        }
+
+        fire() {
+            return new Promise(resolve => {
+                if (!this.worker) {
+                    return resolve()
+                }
+                this.worker.postMessage({})
+                this.worker.once('exit', resolve)
             })
         }
     }
@@ -32,10 +76,13 @@ if (isMainThread) {
     const ignore_suffix_set = new Set(['.pdf', '.png', '.mp4', '.jpg', '.apk', '.zip', '.exe'])
 
     var content_analyser = new ContentAnalyser()
+    var exiting = false
+    var mining = false
 
     function doif_exists() {
         var website = websites.pop()
         if (website) {
+            mining = true
             var res
             var parent_host = get_hostname(website)
             return request_website(website).then(data => {
@@ -81,17 +128,25 @@ if (isMainThread) {
             })
             .finally(() => {
                 parentPort.postMessage(res)
+                mining = false
                 doif_exists()
             })
-        }        
+        } else {
+            if (exiting && !mining) {
+                process.exit(0)
+            }
+        }
     }
 
     content_analyser.initialize().then((() => {
-        parentPort.on('message', website => {
-            websites.push(website)
+        parentPort.on('message', message => {
+            if (message.cmd == 'crawl') {
+                websites.push(message.website)
+            } else {
+                exiting = true
+                parentPort.removeAllListeners()
+            }
             doif_exists()
         })
     }))
-
-
 }

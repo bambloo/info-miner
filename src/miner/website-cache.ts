@@ -142,8 +142,9 @@ export class WebsiteCache {
         this.writing_count = 0
     }
 
+    logger_timer?: NodeJS.Timeout
     initialize() {
-        setInterval(() => {
+        this.logger_timer = setInterval(() => {
             logout(`ring size:${this.ring.count},perimeter:${this.ring.host_website_map.size},splits:${this.cache_split.length}`)
         }, 5000)
         return new Promise<void>((resolve, reject) => {
@@ -254,6 +255,18 @@ export class WebsiteCache {
             transform.end()
             write_file_stream.on('finish', resolve)
             this.writing_stream?.close()
+        })
+        .then(() => {
+            this.ring_sema.close()
+            this.ring_sema = new Semaphore("website-cache-ring")
+            this.ring = new HostRing()
+            this.cache_split_cursor = 0
+            this.cache_split = []
+            this.cache_files = []
+            delete this.writing_file
+            this.writing_stream?.close()
+            this.writing_count = 0
+            clearInterval(this.logger_timer)
         })
     }
 }

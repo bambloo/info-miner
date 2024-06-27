@@ -8,8 +8,15 @@ export type WebsiteMinerResult = {
 }
 
 export class WebsiteMiner {
-    count: number
+    id: number
+    get count(): number
+    
+    constructor(id: number)
 
+    hire(exit_callback: (exitcode: number) => void)
+    fire()
+    
     push(website: string)
     on_mined(callback : (mined: WebsiteMinerResult) => void)
+    dump_mining_set()
 }
