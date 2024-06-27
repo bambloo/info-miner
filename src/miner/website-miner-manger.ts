@@ -47,6 +47,7 @@ export class WebsiteMinerManager {
 
     private host_records: Map<string, HostRecord> = new Map()
     private ignore_set: Set<string> = new Set()
+    private ignore_regex?: RegExp
 
     constructor(bloom: string) {
         this.bloom_path = bloom
@@ -54,9 +55,20 @@ export class WebsiteMinerManager {
 
     add_igore(ign: string) {
         this.ignore_set.add(ign)
+        this.update_ignore_regex()
         return IgnoreModel.instance().then(model => {
             return model.insert({ host: ign})
         })
+    }
+
+    private update_ignore_regex() {
+        if (this.ignore_set.size) {
+            var pattern = `${Array.from(this.ignore_set).map(value => `.*${value}$`).join("|")}`
+            logout(`ignore pattern: ${pattern}`)
+            this.ignore_regex = new RegExp(pattern)
+        } else {
+            delete this.ignore_regex
+        }
     }
 
     cache_bloom() {
@@ -92,6 +104,7 @@ export class WebsiteMinerManager {
                     for (let ignore of ignores) {
                         this.ignore_set.add(ignore.host)
                     }
+                    this.update_ignore_regex()
                 })
             })
         })
@@ -100,12 +113,20 @@ export class WebsiteMinerManager {
         })
     }
 
-    make_miner_working(miner: WebsiteMiner) {
+    private make_miner_working(miner: WebsiteMiner) {
         if (this.mining && miner.count < MINER_CONFIG.WORK_PER_MINER) {
             this.website_cache.pop().then(website => {
                 let hostname = get_hostname(website)
                 if (this.bloom.has(hostname)) {
                     throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, `${hostname} was skipped.`)
+                }
+                if(this.ignore_regex) {
+                    if (this.ignore_regex.test(hostname)) {
+                        this.bloom.add(hostname)
+                        const message = `${hostname} was ignored.`
+                        errout(message)
+                        throw new BamblooError(BamblooStatusCode.SKIPPED_ITEM, message)
+                    }
                 }
                 let state = this.ensure_host_record(hostname).add(website)
                 switch(state) {
@@ -209,20 +230,20 @@ export class WebsiteMinerManager {
     
     mined_count: number = 0
     error_count: number = 0
-    logger_timer?: NodeJS.Timeout
+    private logger_timer?: NodeJS.Timeout
+    private records_checker_timer?: NodeJS.Timeout
     start() {
         return this.initialize().then(() => {
             this.mined_count = 0
             this.error_count = 0
             this.mining = true
             this.bloomed_count = 0
-            // this.website_cache.add("https://www.baidu.com")
     
             this.logger_timer = setInterval(() => {
                 logout(`mined:${this.mined_count},error:${this.error_count},mining:${this.mining_count},bloomed:${this.bloomed_count}`)
             }, 5000)
     
-            setInterval(() => {
+            this.records_checker_timer = setInterval(() => {
                 this.remove_timedout_records()
             }, 1 * 60 * 1000)
     
@@ -264,6 +285,7 @@ export class WebsiteMinerManager {
             this.host_records = new Map()
             this.ignore_set = new Set()
             clearInterval(this.logger_timer)
+            clearInterval(this.records_checker_timer)
         })
     }
 }
