@@ -113,7 +113,7 @@ export function proxy_console(params : LoggerParams) {
     interval = params.interval || 24 * 60 * 60 * 1000
     latency = params.latency || 3 * 1000
 
-    fs.mkdirSync(base)
+    fs.mkdirSync(base, { recursive : true })
     // for (let key in writers) {
     //     console[key as ConsoleLogType] = ((message?: any, ...optionalParams: any[]) => {
     //         return writers[key as ConsoleLogType].func.apply(console, [stringify(message), ...optionalParams])
