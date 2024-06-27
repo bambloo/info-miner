@@ -84,17 +84,18 @@ export default class BloomFilter
         const len = Number(len_buf.readBigUint64LE())
         let promise = Promise.resolve()
         let cursor = 0
+        let read_cursor = 0
 
         const buf = Buffer.alloc(len)
         while (cursor < len) {
           promise = promise
             .then(() => {
               return handle.read(
-                buf.subarray(cursor, cursor + 64 * 1024 * 1024)
+                buf.subarray(read_cursor, read_cursor + 64 * 1024 * 1024)
               )
             })
             .then(() => {
-              return
+              read_cursor += 64 * 1024 * 1024
             })
           cursor += 1024 * 1024 * 64
         }

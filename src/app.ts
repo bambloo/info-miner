@@ -7,6 +7,7 @@ import cookie_parser from 'express'
 import { WebsiteModel } from './model/website'
 import { WebsiteMinerManager } from './miner/website-miner-manger'
 import { MINER_CONFIG } from './config'
+import { BloomFilter } from '../libs/bloom-filters/src/api'
 
 proxy_console({ base : "logs" })
 
@@ -45,4 +46,3 @@ Promise.resolve()
     })
 })
 .then(() => miner_manager.start())
-

@@ -87,6 +87,7 @@ export class WebsiteMinerManager {
         return fs.promises.open(MINER_CONFIG.BLOOM_LOCATION).then(handle => {
             return BloomFilter.fromHandle(handle).then(bloom => {
                 this.bloom = bloom
+                logout(`bloom bits: ${this.bloom.length}`)
                 handle.close()
             })
         })
