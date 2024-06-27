@@ -1,7 +1,5 @@
-import log4js, { Logger, levels } from 'log4js'
 import fs, { WriteStream, write } from 'fs'
 import path from 'path'
-import moment from 'moment'
 
 class TimeExplainer {
     toString() {
@@ -115,6 +113,7 @@ export function proxy_console(params : LoggerParams) {
     interval = params.interval || 24 * 60 * 60 * 1000
     latency = params.latency || 3 * 1000
 
+    fs.mkdirSync(base)
     // for (let key in writers) {
     //     console[key as ConsoleLogType] = ((message?: any, ...optionalParams: any[]) => {
     //         return writers[key as ConsoleLogType].func.apply(console, [stringify(message), ...optionalParams])
