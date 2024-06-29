@@ -112,7 +112,7 @@ export function proxy_console(params : LoggerParams) {
     minsize = params.minsize || 128 * 1024
     interval = params.interval || 24 * 60 * 60 * 1000
     latency = params.latency || 3 * 1000
-
+    
     fs.mkdirSync(base, { recursive : true })
     // for (let key in writers) {
     //     console[key as ConsoleLogType] = ((message?: any, ...optionalParams: any[]) => {

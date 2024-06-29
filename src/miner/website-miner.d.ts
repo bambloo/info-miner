@@ -1,10 +1,12 @@
+import { BamblooError } from "../status"
+
 export type WebsiteMinerResult = {
     website: string,
     host: string,
     domestic: { host: string, url: string } [],
     foreign: {host: string, url: string } [],
     keyword: string,
-    err: any   
+    err: BamblooError
 }
 
 export class WebsiteMiner {

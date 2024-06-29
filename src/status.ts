@@ -1,10 +1,11 @@
 export enum BamblooStatusCode {
     SUCCESS = 0,
-    NON_EXISTS = 1,
-    TYPE_MISMATCH = 2,
-    NETWORK_ERROR = 3,
-    HANDLE_CLOSED = 4,
-    SKIPPED_ITEM = 5
+    NON_EXISTS = 1000,
+    TYPE_MISMATCH,
+    NETWORK_ERROR,
+    TIMEOUT,
+    HANDLE_CLOSED,
+    SKIPPED_ITEM,
 }
 
 export class BamblooError {

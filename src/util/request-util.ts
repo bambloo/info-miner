@@ -11,23 +11,34 @@ export function get_hostname(url: string) {
     }
 }
 
-const REQUEST_TIMEOUT = 120000
+const REQUEST_TIMEOUT = 180000
 
 export function request_website(uri: string) {
     return new Promise<string>((resolve, reject) => {
-        var mod = uri.startsWith('https') ? https : http
-        let req = mod.get(uri, { timeout : REQUEST_TIMEOUT }, res => {
+        if (uri.startsWith("https")) {
+            var req = https.get(uri)
+        } else {
+            var req = http.get(uri)
+        }
+        var bufs: Buffer[] = []
+
+        var response: any
+        var timeout = setTimeout(() => {
+            req.destroy()
+            reject(new BamblooError(BamblooStatusCode.TIMEOUT, `${uri} req timedout.`))
+        }, REQUEST_TIMEOUT)
+
+        req.on('response', res => {
+            response = res
             var length = 0
-            var bufs: Buffer[] = []
             var contentType = res.headers['content-type']
             if (contentType && contentType.indexOf('text') < 0) {
-                req.destroy()
                 clearTimeout(timeout)
                 return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} content-type ${res.headers['content-type']} skip`))
             }
             res.on("data", (data: Buffer) => {
                 length += data.byteLength
-                if (length > 5 * 1024 * 1024) {
+                if (length > 8 * 1024 * 1024) {
                     req.destroy()
                     clearTimeout(timeout)
                     errout(`${uri} too long`)
@@ -42,7 +53,6 @@ export function request_website(uri: string) {
             })
             res.on('error', err => {
                 clearTimeout(timeout)
-                req.destroy()
                 reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} res ${err.message}`))
             })
         })
@@ -51,11 +61,6 @@ export function request_website(uri: string) {
             reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} req ${err.message}`))
         })
         .end()
-
-        var timeout = setTimeout(() => {
-            req.destroy()
-            reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} req timedout.`))
-        }, REQUEST_TIMEOUT)
 
         req.setMaxListeners(20)
     })

@@ -14,11 +14,13 @@ class HostRecord {
     urls: Set<string> = new Set()
     time: number
     error: number
+    timeout: number
 
     constructor(host: string) {
         this.host = host
         this.time = new Date().getTime()
         this.error = 0
+        this.timeout = 0
     }
 
     add(url: string): number {
@@ -63,7 +65,7 @@ export class WebsiteMinerManager {
 
     private update_ignore_regex() {
         if (this.ignore_set.size) {
-            var pattern = `${Array.from(this.ignore_set).map(value => `.*${value}$`).join("|")}`
+            var pattern = `${Array.from(this.ignore_set).map(value => `.*\\.${value}$`).join("|")}`
             logout(`ignore pattern: ${pattern}`)
             this.ignore_regex = new RegExp(pattern)
         } else {
@@ -199,9 +201,19 @@ export class WebsiteMinerManager {
             if (result.err) {
                 if (record) {
                     record.error += 1
-                    if (record.error > 32) {
-                        errout(`too much error on ${record.host}, skip it.`)
-                        this.bloom_host(record.host)
+                    switch(result.err.code) {
+                        case BamblooStatusCode.TIMEOUT:
+                            record.timeout += 1;
+                            if (record.timeout >= 3) {
+                                errout(`${record.host} response too slow.`)
+                                this.bloom_host(record.host)
+                            }
+                            break
+                        default:
+                            if (record.error > 10) {
+                                errout(`too much error on ${record.host}, skip it.`)
+                                this.bloom_host(record.host)
+                            }
                     }
                     this.error_count++
                 }

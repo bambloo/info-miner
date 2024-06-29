@@ -1,4 +1,5 @@
 import { Collection, MongoClient} from 'mongodb'
+import { DATABASE_CONFIG } from '../config'
 
 var mongo_global: MongoClient
 
@@ -7,7 +8,7 @@ export function mongo_client() {
         if (mongo_global) {
             resolve(mongo_global)
         } else {
-            MongoClient.connect("mongodb://info-miner-admin:info-miner@localhost:27017/?authSource=info-miner").then(client => {
+            MongoClient.connect(DATABASE_CONFIG.URL).then(client => {
                 mongo_global = client
                 resolve(mongo_global)
             }).catch(reject)

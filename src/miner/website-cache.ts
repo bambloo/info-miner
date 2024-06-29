@@ -3,8 +3,7 @@ import path from 'path'
 import { WriteStream } from 'fs'
 import { walk, walkSync } from 'walk'
 import { Semaphore } from '../util/Semaphore'
-import { load } from 'cheerio'
-import { logout } from '../util/logger-helper'
+import { errout, logout } from '../util/logger-helper'
 import { Transform } from 'stream'
 import { MINER_CONFIG } from '../config'
 import { get_hostname } from '../util/request-util'
@@ -13,8 +12,7 @@ const CACHE_SPLIT = 1024 * 64
 const CACHE_COUNT = 4
 
 const CACHE_RING_PERIMETER = MINER_CONFIG.MINER_COUNT * MINER_CONFIG.WORK_PER_MINER / 2
-const CACHE_RING_HEIGHT = 4096
-const CACHE_RING_MAX_SIZE = CACHE_RING_PERIMETER * CACHE_RING_HEIGHT
+const CACHE_RING_HEIGHT = 128
 
 type HostRingItem = {
     prev: HostRingItem
@@ -23,7 +21,6 @@ type HostRingItem = {
     website_set: Set<string>
     host: string
 }
-
 
 enum HostRingPushStatus {
     SUCCESS,
@@ -227,6 +224,7 @@ export class WebsiteCache {
         }
         this.loading_cache = true
         let next_file = this.cache_files.shift() as string
+        errout(`load next_file: ${next_file}`)
         fs.promises.readFile(next_file, 'utf-8').then(str => {
             if (str.length) {
                 let split = str.trim().split("\n")
