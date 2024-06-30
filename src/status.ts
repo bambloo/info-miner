@@ -6,6 +6,7 @@ export enum BamblooStatusCode {
     TIMEOUT,
     HANDLE_CLOSED,
     SKIPPED_ITEM,
+    PROCEDURE,
 }
 
 export class BamblooError {

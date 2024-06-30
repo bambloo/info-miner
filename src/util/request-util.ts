@@ -1,5 +1,6 @@
 import http from 'http'
 import https from 'https'
+import zlib from 'zlib'
 import { BamblooError, BamblooStatusCode } from '../status'
 import { errout } from './logger-helper'
 
@@ -32,6 +33,8 @@ export function request_website(uri: string) {
             response = res
             var length = 0
             var contentType = res.headers['content-type']
+            var gzip = res.headers['content-encoding'] == 'gzip'
+            
             if (contentType && contentType.indexOf('text') < 0) {
                 clearTimeout(timeout)
                 return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `${uri} content-type ${res.headers['content-type']} skip`))
@@ -47,9 +50,19 @@ export function request_website(uri: string) {
                 bufs.push(Buffer.from(data))
             })
             res.on('end', () => {
-                var buf = Buffer.concat(bufs)
                 clearTimeout(timeout)
-                resolve(buf.toString())
+                var buf = Buffer.concat(bufs)
+                if (gzip) {
+                    zlib.gunzip(buf, (err, decompressed) => {
+                        if (err) {
+                            clearTimeout(timeout)
+                            return reject(new BamblooError(BamblooStatusCode.TYPE_MISMATCH, `decompress response from ${uri} error`))
+                        }
+                        resolve(decompressed.toString())
+                    })
+                } else {
+                    resolve(buf.toString())
+                }
             })
             res.on('error', err => {
                 clearTimeout(timeout)
