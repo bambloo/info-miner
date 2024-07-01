@@ -9,12 +9,11 @@ export enum BamblooStatusCode {
     PROCEDURE,
 }
 
-export class BamblooError {
+export class BamblooError extends Error {
     code : BamblooStatusCode
-    mesg : string
 
     constructor(code : BamblooStatusCode, mesg: string) {
+        super(mesg)
         this.code = code
-        this.mesg = mesg
     }
 }
