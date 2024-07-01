@@ -37,6 +37,9 @@ export function request_website(uri: string) {
         }, REQUEST_TIMEOUT)
 
         const error_handler = (error: any, type: string) => {
+            if (error.code == 'ENOBUFS') {
+                errout(`${uri} ENOBUFS`)
+            }
             clearTimeout(timeout)
             reject(new BamblooError(BamblooStatusCode.NETWORK_ERROR, `${uri} ${type} ${error.code || error.message}`))
         }
