@@ -15,7 +15,7 @@ export class WebsiteMiner {
     
     constructor(id: number)
 
-    hire(exit_callback: (exitcode: number) => void)
+    hire(exit_callback: (exitcode: number) => void, analyser_path?: string)
     fire()
     
     push(website: string)

@@ -1,24 +1,48 @@
-import { WebsiteModel } from "../model/website";
-import { errout, logout } from "../util/logger-helper";
-import fs from 'fs'
-import path from 'path'
+import { CheerioAPI, load } from "cheerio";
+import url from 'url'
 
-export class ContentAnalyser {
-    private keywords: string[] = []
+class ContentAnalyseResult {
+    private keyword?: string
+    private urls_tomine: string[] = []
 
-    initialize() {
-        return fs.promises.readFile(path.resolve(__dirname, '../../resources/dictionary.txt')).then(data => {
-            this.keywords = data.toString().split('\n')
-            // logout(this.content_list)
-        })
+    keyword_got(keyword: string) {
+        this.keyword = keyword
     }
 
-    analyse(website: string, content: string) {
-        for (let keyword of this.keywords) {
-            if (content.indexOf(keyword) >= 0) {
-                logout(`matched: ${website} keyword:${keyword}`)
-                return keyword
+    tomine(website: string) {
+        this.urls_tomine.push(website)
+    }
+}
+
+const ignore_suffix_set = new Set(['.pdf', '.png', '.mp4', '.jpg', '.apk', '.zip', '.exe', '.rpm'])
+export default class ContentAnalyser {
+
+    protected initialize(): Promise<void> {
+        return Promise.resolve()
+    }
+
+    protected on_content(domain:string, website: string, content: string, $: CheerioAPI, result: ContentAnalyseResult) {
+        var a_sections = $('a')
+
+        for (let item of a_sections) {
+            var href = item.attribs['href']
+            if (!href || !href.length || 
+                href.indexOf('void(0)') >= 0 || href.startsWith("mailto:") || href.startsWith("tel:") || 
+                ignore_suffix_set.has(href.substring(href.length - 4))) {
+                continue
+            }
+
+            href = url.resolve(website, href)
+            if (href.startsWith("http")) {
+                result.tomine(href)
             }
         }
+    }
+
+    protected analyse(domain: string, website: string, content: string): ContentAnalyseResult {
+        var $ = load(content)
+        var result = new ContentAnalyseResult()
+        this.on_content(domain, website, content, $, result)
+        return result
     }
 }

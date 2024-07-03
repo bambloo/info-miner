@@ -12,7 +12,7 @@ if (isMainThread) {
             return this.mining_set.size
         }
 
-        hire(exit_listener) {
+        hire(exit_listener, analyser) {
             this.worker = new Worker(__filename)
             this.worker.once('exit', exit_code => {
                 delete this.worker
@@ -27,6 +27,8 @@ if (isMainThread) {
                     this.mined_data_listener(result)
                 }
             })
+
+            this.worker.postMessage({ analyser: analyser })
 
             this.mining_set.forEach(website => {
                 this.worker.postMessage({ cmd: 'crawl', website : website })
@@ -67,15 +69,12 @@ if (isMainThread) {
     require('ts-node').register()
     const { parentPort } = require("worker_threads")
     const { request_website, get_hostname } = require("../util/request-util")
-    const { ContentAnalyser } = require('./content-analyser')
     const cheerio = require('cheerio')
     const url = require('url')
 
     var websites = []
 
-    const ignore_suffix_set = new Set(['.pdf', '.png', '.mp4', '.jpg', '.apk', '.zip', '.exe'])
-
-    var content_analyser = new ContentAnalyser()
+    var content_analyser
     var exiting = false
     var mining = false
 
@@ -84,47 +83,31 @@ if (isMainThread) {
         if (website) {
             mining = true
             var res
-            var parent_host = get_hostname(website)
+
+            var domain = get_hostname(website)
             return request_website(website).then(data => {
-                var keyword = content_analyser.analyse(website, data)
-                var $ = cheerio.load(data)
-                var a_sections = $('a')
-        
+                var result = content_analyser.analyse(domain, website, data)
+
                 var foreign_urls = []
                 var domestic_urls = []
 
-                for (let item of a_sections) {
-                    var href = item.attribs['href']
-                    if (!href || !href.length || href.length > 128 || 
-                        href.indexOf('void(0)') >= 0 || href.startsWith("mailto:") || href.startsWith("tel:") || 
-                        ignore_suffix_set.has(href.substring(href.length - 4))) {
-                        continue
-                    }
-
-                    href = url.resolve(website, href)
-                    if (href.startsWith("http")) {
-                        var child_hostname = get_hostname(href)
-                        if (child_hostname != parent_host) {
-                            foreign_urls.push({
-                                url: href,
-                                host: child_hostname
-                            })
-                        } else {
-                            domestic_urls.push({
-                                url: href,
-                                host: child_hostname
-                            })
-                        }
+                for (let url of result.urls_tomine) {
+                    var child_domain = get_hostname(url)
+                    if (child_domain != result.domain) {
+                        foreign_urls.push({ url: url, host: child_domain })
+                    } else {
+                        domestic_urls.push({ url: url, host: child_domain })
                     }
                 }
-                if (keyword) {
-                    res = { website: website, host: parent_host, domestic: domestic_urls, foreign: foreign_urls, keyword: keyword}
+
+                if (result.keyword) {
+                    res = { website: website, host: domain, domestic: domestic_urls, foreign: foreign_urls, keyword: result.keyword}
                 } else {
-                    res = { website: website, host: parent_host, domestic: domestic_urls, foreign: foreign_urls }
+                    res = { website: website, host: domain, domestic: domestic_urls, foreign: foreign_urls }
                 }
             })
             .catch(err => {
-                res = { website: website, host: parent_host, err: err }
+                res = { website: website, host: domain, err: err }
             })
             .finally(() => {
                 parentPort.postMessage(res)
@@ -138,17 +121,24 @@ if (isMainThread) {
         }
     }
 
-    content_analyser.initialize().then((() => {
-        parentPort.on('message', message => {
-            if (message.cmd == 'crawl') {
-                websites.push(message.website)
-            } else {
-                exiting = true
-                parentPort.removeAllListeners()
-            }
-            doif_exists()
-        })
-    }))
+    parentPort.once('message', message => {
+        if (message.analyser) {
+            content_analyser = new (require(message.analyser).default)
+        } else {
+            content_analyser = new (require('./content-analyser').default)
+        }
+        content_analyser.initialize().then((() => {
+            parentPort.on('message', message => {
+                if (message.cmd == 'crawl') {
+                    websites.push(message.website)
+                } else {
+                    exiting = true
+                    parentPort.removeAllListeners()
+                }
+                doif_exists()
+            })
+        }))  
+    })
 
     process.on('uncaughtException', err => {
         console.log(err)
