@@ -21,6 +21,7 @@ export class WebsiteMinerManager {
     private error_count: number = 0
 
     private bloom: string
+    private analyser?: string
 
     constructor(bloom: string) {
         this.bloom = bloom
@@ -51,7 +52,7 @@ export class WebsiteMinerManager {
         let reset_miner = (exitcode: number) => {
             if (this.mining) {
                 miner.dump_mining_set()
-                miner.hire(reset_miner)
+                miner.hire(reset_miner, this.analyser)
             }
             errout(`${miner.id} miner exited with exitcode  ${exitcode}`)
         }
@@ -83,14 +84,15 @@ export class WebsiteMinerManager {
             }
             this.website_cache.mined(result.host, result.website)
         })
-        miner.hire(reset_miner)
+        miner.hire(reset_miner, this.analyser)
         this.make_miner_working(miner)
     }
 
     private logger_timer?: NodeJS.Timeout
 
     private last_logged_time: number = 0
-    start() {
+    start(analyser?: string) {
+        this.analyser = analyser
         return this.initialize().then(() => {
             this.mined_count = 0
             this.error_count = 0

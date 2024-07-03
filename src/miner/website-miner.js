@@ -69,8 +69,7 @@ if (isMainThread) {
     require('ts-node').register()
     const { parentPort } = require("worker_threads")
     const { request_website, get_hostname } = require("../util/request-util")
-    const cheerio = require('cheerio')
-    const url = require('url')
+    const path = require('path')
 
     var websites = []
 
@@ -123,7 +122,7 @@ if (isMainThread) {
 
     parentPort.once('message', message => {
         if (message.analyser) {
-            content_analyser = new (require(message.analyser).default)
+            content_analyser = new (require(path.resolve(message.analyser)).default)
         } else {
             content_analyser = new (require('./content-analyser').default)
         }
